@@ -1,0 +1,972 @@
+#include<dos.h>
+#include<math.h>
+#include<stdio.h>
+#include<conio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<graphics.h>
+#define DFSIZE 100
+
+int gd = DETECT, gm, button, x, y;
+char fileName[200] = "untitled";
+char str[10];
+char currMenu = 'D', currSubMenu = 'D'; //D for Default
+char currTool;
+int currCol = 0, currStyle = 0; //0 for black
+int linePointNos = 1, rectPointNos = 1, polyPointNos = 1, circPointNos = 1;
+int l1, l2, r1, r2, p1, p2, c1, c2;
+
+union REGS i, o;
+
+void far* bmpFileMenu;
+void far* bmpEditMenu;
+void far* bmpToolsMenu;
+void far* bmpImageMenu;
+void far* bmpColorMenu;
+void far* bmpRotateMenu;
+void far* bmpCanvas;
+void far* bmpDialog;
+
+int df_op[DFSIZE], fre = 0, df_style[DFSIZE], df_col[DFSIZE];
+float df_x[DFSIZE], df_y[DFSIZE];
+int frame_pen_x, frame_pen_y;
+int WIDTH, HEIGHT, WIDTH_START, WIDTH_END, HEIGHT_START, HEIGHT_END;
+
+void putPoint(int op, int x, int y, int col, int style){
+ float a = (float)x/639, b = (float)y/479;
+ if(fre >= DFSIZE){
+  printf("Error: Display File Full.");
+  return;
+ }
+ df_op[fre] = op;
+ df_x[fre] = a;
+ df_y[fre] = b;
+ df_col[fre] = col;
+ df_style[fre] = style;
+ fre++;
+}
+
+void writeFile(){
+ FILE *fp;
+ int i;
+ fp = fopen(fileName, "w");
+ for(i = 0; i < fre; i++){
+  fprintf(fp, "%d %f %f %d %d\n", df_op[i], df_x[i], df_y[i], df_col[i], df_style[i]);
+ }
+ printf("Written Successfully.\n");
+ fclose(fp);
+}
+
+void getPoint(int n, int *op, float *x, float *y, int *col, int *style){
+ *op = df_op[n];
+ *x = df_x[n];
+ *y = df_y[n];
+ *col = df_col[n];
+ *style = df_style[n];
+}
+
+void readFile(char* fileName){
+ FILE *fp;
+ int c, i = 0;
+ int x; float y, z;
+ fp = fopen(fileName, "r");
+
+ do{
+  c = fscanf(fp, "%d", &df_op[i]);
+  c = fscanf(fp, "%f", &df_x[i]);
+  c = fscanf(fp, "%f", &df_y[i]);
+  c = fscanf(fp, "%d", &df_col[i]);
+  c = fscanf(fp, "%d", &df_style[i]);
+  //printf("%d %f %f", df_op[i], df_x[i], df_y[i]);
+  i++;
+ }while(c != EOF);
+ printf("Read Successfully.\n");
+ fre = i;
+ fclose(fp);
+}
+
+void printArrays(){
+ int i;
+ for(i = 0; i < fre - 1; i++){
+  printf("%d %f %f\n", df_op[i], df_x[i], df_y[i]);
+ }
+}
+
+void doMove(float x, float y){
+ //frame_pen_x = max(WIDTH_START, min(WIDTH_END, x*WIDTH + WIDTH_START));
+ //frame_pen_y = max(HEIGHT_START, min(HEIGHT_END, y*HEIGHT + HEIGHT_START));
+ frame_pen_x = x*639;
+ frame_pen_y = y*479;
+ moveto(frame_pen_x, frame_pen_y);
+}
+
+void doLine(float x, float y){
+ //frame_pen_x = max(WIDTH_START, min(WIDTH_END, x*WIDTH + WIDTH_START));
+ //frame_pen_y = max(HEIGHT_START, min(HEIGHT_END, y*HEIGHT + HEIGHT_START));
+ frame_pen_x = x*639;
+ frame_pen_y = y*479;
+ lineto(frame_pen_x, frame_pen_y);
+}
+
+void interpret(){
+ int i, op, col, style;
+ float x, y;
+ setfillstyle(SOLID_FILL, WHITE);
+ //setcolor(15);
+ bar(96, 43, 640, 384);
+ setfillstyle(0,0);
+ for(i = 0; i < fre; i++){
+  int tX, tY;
+  getPoint(i, &op, &x, &y, &col, &style);
+  /*if(op == 1){
+   doMove(x, y);
+  }else if(op == 2){
+   doLine(x, y);
+  }*/
+  setcolor(col);
+  setfillstyle(style, col);
+  tX = x*639; tY = y*479;
+  if(op == 2){
+   doLine(x, y);
+  }else if(op == 0){
+	  i++;
+	  getPoint(i, &op, &x, &y, &col, &style);
+	circle(tX, tY, x*639);
+	floodfill(tX, tY, col);
+  }else if(op == 4){
+	getPoint(i+2, &op, &x, &y, &col, &style);
+	bar(tX, tY, x*639, y*479);
+	moveto(tX, tY);
+  }else{
+   doMove(x, y);
+  }
+ }
+}
+
+void saveBmp();
+
+void saveAs(){
+	int c = currCol;
+	getimage(270, 210, 400, 270, bmpDialog);
+	setcolor(7);
+	bar(270, 210, 400, 270);
+	setcolor(0);
+	rectangle(273, 213, 397, 267);
+	outtextxy(290, 225, "Give File Name:");
+	scanf("%s", &fileName);
+	strncat(fileName, ".txt", (sizeof(fileName)-strlen(fileName)));
+	outtextxy(290, 240, fileName);
+	getch();
+	setcolor(c);
+	putimage(270, 210, bmpDialog, 0);
+	writeFile();
+}
+
+void open(){
+	int c = currCol;
+	getimage(270, 210, 400, 270, bmpDialog);
+	setcolor(7);
+	bar(270, 210, 400, 270);
+	setcolor(0);
+	rectangle(273, 213, 397, 267);
+	outtextxy(290, 225, "Give File Name:");
+	scanf("%s", &fileName);
+	strncat(fileName, ".txt", (sizeof(fileName)-strlen(fileName)));
+	outtextxy(290, 240, "Open ");
+	outtextxy(320, 240, fileName);
+	outtextxy(345, 240, "?");
+	
+	getch();
+	setcolor(15);
+	bar(10, 1, 69, 10);
+	outtextxy(10, 1, fileName);
+	setcolor(c);
+	putimage(270, 210, bmpDialog, 0);
+	readFile(fileName);
+	interpret();
+}
+
+void printMousePos(){
+ int cX, cY;
+ delay(250);
+ int x1, y1, x2, y2, i, j, col;
+ cX = getx(); cY = gety();
+ col = getcolor();
+ setcolor(15);
+ x1 = 515 + textwidth("x: ");
+ y1 = 465 + 1;
+ x2 = x1 + textwidth(str);
+ y2 = y1 + textwidth(str);
+
+ for(i = x1; i <= x2; i++){
+  for(j = y1; j <= y2; j++){
+   putpixel(i, j, 8);
+  }
+ }
+
+ outtextxy(515, 465, "x:     y:    ");
+ /*x = x > 0 ? x : 0;
+ y = y > 0 ? y : 0;  */
+ y = y > (0.71*getmaxy()) ? 0.71*getmaxy() : y;
+
+ sprintf(str, "%3d   %3d", x, y);
+ outtextxy(x1, y1, str);
+ setcolor(col);
+ outtextxy(cX, cY, "");
+}
+
+void hideMousePtr(){
+ i.x.ax = 2;
+ int86(0x33, &i, &o);
+}
+
+void getMousePos(){
+ i.x.ax = 3;
+ int86(0x33, &i, &o);
+ button = o.x.bx;
+ if(o.x.cx - 0.15*getmaxx() > 0 && o.x.dx - 0.09*getmaxy() > 0)
+ {
+  if(o.x.dx - 0.09*getmaxy() <= (0.71*getmaxy()))
+   x = o.x.cx - 0.15*getmaxx();
+  y = o.x.dx - 0.09*getmaxy();
+ }
+}
+
+void restrictMousePtr(int x1, int y1, int x2, int y2){
+ i.x.ax = 7;
+ i.x.cx = x1;
+ i.x.dx = x2;
+ int86(0x33, &i, &o);
+ i.x.ax = 8;
+ i.x.cx = y1;
+ i.x.dx = y2;
+ int86(0x33, &i, &o);
+}
+
+initMouse(){
+ i.x.ax = 0;
+ int86(0x33, &i, &o);
+ return(o.x.ax);
+}
+
+void showMousePtr(){
+ i.x.ax = 1;
+ int86(0x33, &i, &o);
+}
+
+void structure(){
+ settextstyle(2, HORIZ_DIR, 4);
+ setfillstyle(SOLID_FILL, 15);
+ bar(0, 0, getmaxx(), getmaxy());  //back screen
+ setfillstyle(SOLID_FILL, 1);
+ bar(0, 0, getmaxx(), 0.03*getmaxy()); //title bar
+ setfillstyle(SOLID_FILL, 7);
+ bar(0, 0.03*getmaxy(), getmaxx(), 0.06*getmaxy()); //menu bar
+ setfillstyle(SOLID_FILL, 8);
+ bar(0, 0.06*getmaxy(), getmaxx(), 0.09*getmaxy()); //extra bar
+ setfillstyle(SOLID_FILL, 7);
+ bar(0, 0.09*getmaxy(), 0.15*getmaxx(), getmaxy()); //side panel
+ setfillstyle(SOLID_FILL, 8);
+ bar(0.15*getmaxx(), 0.80*getmaxy(), getmaxx(), getmaxy()); //pattern bar
+ setfillstyle(SOLID_FILL, 7);
+ bar(0, 0.94*getmaxy(), getmaxx(), 0.97*getmaxy()); //extra status bar
+ setfillstyle(SOLID_FILL, 8);
+ bar(0, 0.97*getmaxy(), getmaxx(), getmaxy()); //status bar
+ outtextxy(10, 1, fileName);
+ outtextxy(70, 1, " - Vector Graphics Editor");
+ setfillstyle(SOLID_FILL, 7);
+ bar3d(1, 0.034*getmaxy(), 30, 0.055*getmaxy(), 1, 1);
+ bar3d(41, 0.034*getmaxy(), 70, 0.055*getmaxy(), 1, 1);
+ bar3d(81, 0.034*getmaxy(), 110, 0.055*getmaxy(), 1, 1);
+ bar3d(121, 0.034*getmaxy(), 150, 0.055*getmaxy(), 1, 1);
+ bar3d(161, 0.034*getmaxy(), 190, 0.055*getmaxy(), 1, 1);
+ bar3d(201, 0.034*getmaxy(), 235, 0.055*getmaxy(), 1, 1);
+ setcolor(1);
+ outtextxy(2, 0.034*getmaxy(), "F");
+ setcolor(15);
+ outtextxy(2+textwidth("F"), 0.034*getmaxy(), "ile");   //File button
+ setcolor(1);
+ outtextxy(42, 0.034*getmaxy(), "E");
+ setcolor(15);
+ outtextxy(42+textwidth("E"), 0.034*getmaxy(), "dit"); //Edit Button
+ setcolor(1);
+ outtextxy(82, 0.034*getmaxy(), "T");
+ setcolor(15);
+ outtextxy(82+textwidth("T"), 0.034*getmaxy(), "ools"); //Tools Button
+ setcolor(1);
+ outtextxy(122, 0.034*getmaxy(), "I");
+ setcolor(15);
+ outtextxy(122+textwidth("F"), 0.034*getmaxy(), "mage"); //Image Button
+ setcolor(1);
+ outtextxy(162, 0.034*getmaxy(), "C");
+ setcolor(15);
+ outtextxy(162+textwidth("F"), 0.034*getmaxy(), "olor"); //Color Button
+ setcolor(1);
+ outtextxy(202, 0.034*getmaxy(), "R");
+ setcolor(15);
+ outtextxy(202+textwidth("F"), 0.034*getmaxy(), "otate"); //Rotate Button
+ bar3d(70, 0.12*getmaxy(), 85, 0.12*getmaxy() + 15, 1, 1);  //Tool Panel
+ line(72, 0.12*getmaxy() + 2, 83, 0.12*getmaxy() + 13);		//line tool
+ bar3d(40, 0.12*getmaxy(), 55, 0.12*getmaxy() + 15, 1, 1);
+ circle(48, 0.12*getmaxy() + 7, 5);							//circle tool
+ bar3d(70, 0.12*getmaxy()+30, 85, 0.12*getmaxy()+45, 1, 1);
+ rectangle(72, 0.12*getmaxy() + 33, 83, 0.12*getmaxy() + 42);	//rect tool
+ bar3d(40, 0.12*getmaxy()+30, 55, 0.12*getmaxy()+45, 1, 1);
+ moveto(43, 0.12*getmaxy() + 32);								//poly tool
+ linerel(-1, 8);
+ linerel(5, -2);
+ linerel(0, 3);
+ linerel(5, -2);
+ linerel(3, -2);
+ lineto(43, 0.12*getmaxy() + 32);
+ bar3d(70, 0.12*getmaxy()+60, 85, 0.12*getmaxy()+75, 1, 1);
+ settextstyle(3, HORIZ_DIR, 1);
+ outtextxy(73, 0.12*getmaxy()+55, "A");							//text tool
+ settextstyle(2, HORIZ_DIR, 4);
+ bar3d(40, 0.12*getmaxy()+60, 55, 0.12*getmaxy()+75, 1, 1);		//freehand tool
+ bar3d(70, 0.12*getmaxy()+90, 85, 0.12*getmaxy()+105, 1, 1);
+ ellipse(78, 0.12*getmaxy() + 98, 0, 360, 7, 3);				//ellipse tool
+ bar3d(40, 0.12*getmaxy()+90, 55, 0.12*getmaxy()+105, 1, 1);
+ arc(47, 0.12*getmaxy() + 98, 0, 120, 5);						//arc tool
+ setfillstyle(SOLID_FILL, 0);
+ bar3d(0.15*getmaxx() + 30, 0.8*getmaxy() + 15, 0.15*getmaxx() + 45, 0.8*getmaxy() + 30, 1, 1);
+ setfillstyle(SOLID_FILL, 1);
+ bar3d(0.15*getmaxx() + 30, 0.8*getmaxy() + 35, 0.15*getmaxx() + 45, 0.8*getmaxy() + 50, 1, 1);
+
+ setfillstyle(SOLID_FILL, 2);
+ bar3d(0.15*getmaxx() + 55, 0.8*getmaxy() + 15, 0.15*getmaxx() + 70, 0.8*getmaxy() + 30, 1, 1);
+ setfillstyle(SOLID_FILL, 3);
+ bar3d(0.15*getmaxx() + 55, 0.8*getmaxy() + 35, 0.15*getmaxx() + 70, 0.8*getmaxy() + 50, 1, 1);
+
+ setfillstyle(SOLID_FILL, 4);
+ bar3d(0.15*getmaxx() + 80, 0.8*getmaxy() + 15, 0.15*getmaxx() + 95, 0.8*getmaxy() + 30, 1, 1);
+ setfillstyle(SOLID_FILL, 5);
+ bar3d(0.15*getmaxx() + 80, 0.8*getmaxy() + 35, 0.15*getmaxx() + 95, 0.8*getmaxy() + 50, 1, 1);
+
+  setfillstyle(SOLID_FILL, 6);
+ bar3d(0.15*getmaxx() + 105, 0.8*getmaxy() + 15, 0.15*getmaxx() + 120, 0.8*getmaxy() + 30, 1, 1);
+ setfillstyle(SOLID_FILL, 7);
+ bar3d(0.15*getmaxx() + 105, 0.8*getmaxy() + 35, 0.15*getmaxx() + 120, 0.8*getmaxy() + 50, 1, 1);
+
+ setfillstyle(SOLID_FILL, 8);
+ bar3d(0.15*getmaxx() + 130, 0.8*getmaxy() + 15, 0.15*getmaxx() + 145, 0.8*getmaxy() + 30, 1, 1);
+ setfillstyle(SOLID_FILL, 9);
+ bar3d(0.15*getmaxx() + 130, 0.8*getmaxy() + 35, 0.15*getmaxx() + 145, 0.8*getmaxy() + 50, 1, 1);
+
+ setfillstyle(SOLID_FILL, 10);
+ bar3d(0.15*getmaxx() + 155, 0.8*getmaxy() + 15, 0.15*getmaxx() + 170, 0.8*getmaxy() + 30, 1, 1);
+ setfillstyle(SOLID_FILL, 11);
+ bar3d(0.15*getmaxx() + 155, 0.8*getmaxy() + 35, 0.15*getmaxx() + 170, 0.8*getmaxy() + 50, 1, 1);
+
+  setfillstyle(SOLID_FILL, 12);
+ bar3d(0.15*getmaxx() + 180, 0.8*getmaxy() + 15, 0.15*getmaxx() + 195, 0.8*getmaxy() + 30, 1, 1);
+ setfillstyle(SOLID_FILL, 13);
+ bar3d(0.15*getmaxx() + 180, 0.8*getmaxy() + 35, 0.15*getmaxx() + 195, 0.8*getmaxy() + 50, 1, 1);
+
+  setfillstyle(SOLID_FILL, 14);
+ bar3d(0.15*getmaxx() + 205, 0.8*getmaxy() + 15, 0.15*getmaxx() + 220, 0.8*getmaxy() + 30, 1, 1);
+ setfillstyle(SOLID_FILL, 15);
+ bar3d(0.15*getmaxx() + 205, 0.8*getmaxy() + 35, 0.15*getmaxx() + 220, 0.8*getmaxy() + 50, 1, 1);
+
+ setfillstyle(3, getmaxcolor());
+ //bar3d(0.15*getmaxx() + 330, 0.8*getmaxy() + 15, 0.15*getmaxx() + 345, 0.8*getmaxy() + 30, 1, 1);
+ bar3d(426, 398, 441, 413, 1, 1);
+ setfillstyle(4, getmaxcolor());
+ //bar3d(0.15*getmaxx() + 330, 0.8*getmaxy() + 35, 0.15*getmaxx() + 345, 0.8*getmaxy() + 50, 1, 1);
+ bar3d(426, 418, 441, 433, 1, 1);
+
+ setfillstyle(5, getmaxcolor());
+ //bar3d(0.15*getmaxx() + 355, 0.8*getmaxy() + 15, 0.15*getmaxx() + 370, 0.8*getmaxy() + 30, 1, 1);
+ bar3d(451, 398, 466, 413, 1, 1);
+ setfillstyle(6, getmaxcolor());
+ //bar3d(0.15*getmaxx() + 355, 0.8*getmaxy() + 35, 0.15*getmaxx() + 370, 0.8*getmaxy() + 50, 1, 1);
+ bar3d(451, 418, 466, 433, 1, 1);
+
+ setfillstyle(7, getmaxcolor());
+ //bar3d(0.15*getmaxx() + 380, 0.8*getmaxy() + 15, 0.15*getmaxx() + 395, 0.8*getmaxy() + 30, 1, 1);
+ bar3d(476, 398, 491, 413, 1, 1);
+ setfillstyle(8, getmaxcolor());
+ //bar3d(0.15*getmaxx() + 380, 0.8*getmaxy() + 35, 0.15*getmaxx() + 395, 0.8*getmaxy() + 50, 1, 1);
+ bar3d(476, 418, 491, 433, 1, 1);
+
+ setfillstyle(9, getmaxcolor());
+ //bar3d(0.15*getmaxx() + 405, 0.8*getmaxy() + 15, 0.15*getmaxx() + 420, 0.8*getmaxy() + 30, 1, 1);
+ bar3d(501, 398, 516, 413, 1, 1);
+ setfillstyle(10, getmaxcolor());
+ //bar3d(0.15*getmaxx() + 405, 0.8*getmaxy() + 35, 0.15*getmaxx() + 420, 0.8*getmaxy() + 50, 1, 1);
+ bar3d(501, 418, 516, 433, 1, 1);
+
+ setfillstyle(11, getmaxcolor());
+ //bar3d(0.15*getmaxx() + 430, 0.8*getmaxy() + 15, 0.15*getmaxx() + 445, 0.8*getmaxy() + 30, 1, 1);
+ bar3d(526, 398, 541, 413, 1, 1);
+ setfillstyle(2, getmaxcolor());
+ //bar3d(0.15*getmaxx() + 430, 0.8*getmaxy() + 35, 0.15*getmaxx() + 445, 0.8*getmaxy() + 50, 1, 1);
+ bar3d(526, 418, 541, 433, 1, 1);
+ 
+ setfillstyle(0, getmaxcolor());
+ bar3d(551, 398, 566, 413, 1, 1);
+ setfillstyle(1, getmaxcolor());
+ bar3d(551, 418, 566, 433, 1, 1);
+}
+
+void drawFileMenu(){
+ hideMousePtr();
+ //getimage(0, 0.06*getmaxy(), 105, 0.06*getmaxy() + 120, bmpFileMenu);
+ saveBmp();
+ showMousePtr();
+ currMenu = 'F';
+ setfillstyle(SOLID_FILL, 7);
+ bar3d(0, 0.06*getmaxy(), 100, 0.06*getmaxy() + 120, 1, 1);
+ setcolor(15);
+ outtextxy(10, 0.06*getmaxy(), "New");
+ setcolor(1);
+ outtextxy(100 - 10, 0.06*getmaxy(), "N");
+
+ setcolor(15);
+ outtextxy(10, 0.06*getmaxy() + 20, "Open");
+ setcolor(1);
+ outtextxy(100 - 10, 0.06*getmaxy() + 20, "O");
+
+ setcolor(15);
+ outtextxy(10, 0.06*getmaxy() + 40, "Save");
+ setcolor(1);
+ outtextxy(100 - 10, 0.06*getmaxy() + 40, "S");
+
+ setcolor(15);
+ outtextxy(10, 0.06*getmaxy() + 60, "Save As");
+ setcolor(1);
+ outtextxy(100 - 10, 0.06*getmaxy() + 60, "A");
+
+ setcolor(15);
+ outtextxy(10, 0.06*getmaxy() + 80, "Close");
+ setcolor(1);
+ outtextxy(100 - 10, 0.06*getmaxy() + 80, "C");
+
+ setcolor(15);
+ outtextxy(10, 0.06*getmaxy() + 100, "Exit");
+ setcolor(1);
+ outtextxy(100 - 10, 0.06*getmaxy() + 100, "X");
+}
+
+void drawEditMenu(){
+ hideMousePtr();
+ //getimage(40, 0.06*getmaxy(), 145, 0.06*getmaxy() + 120, bmpEditMenu);
+ saveBmp();
+ showMousePtr();  
+ currMenu = 'E';
+ setfillstyle(SOLID_FILL, 7);
+ bar3d(40, 0.06*getmaxy(), 140, 0.06*getmaxy() + 120, 1, 1);
+ setcolor(15);
+ outtextxy(42, 0.06*getmaxy(), "Undo");
+ setcolor(1);
+ outtextxy(140 - 10, 0.06*getmaxy(), "U");
+
+ setcolor(15);
+ outtextxy(42, 0.06*getmaxy() + 20, "Copy");
+ setcolor(1);
+ outtextxy(140 - 10, 0.06*getmaxy() + 20, "C");
+
+ setcolor(15);
+ outtextxy(42, 0.06*getmaxy() + 40, "Delete");
+ setcolor(1);
+ outtextxy(140 - 10, 0.06*getmaxy() + 40, "E");
+
+ setcolor(15);
+ outtextxy(42, 0.06*getmaxy() + 60, "Move");
+ setcolor(1);
+ outtextxy(140 - 10, 0.06*getmaxy() + 60, "M");
+
+ setcolor(15);
+ outtextxy(42, 0.06*getmaxy() + 80, "Scale");
+ setcolor(1);
+ outtextxy(140 - 10, 0.06*getmaxy() + 80, "L");
+
+ setcolor(15);
+ outtextxy(42, 0.06*getmaxy() + 100, "Fill");
+ setcolor(1);
+ outtextxy(140 - 10, 0.06*getmaxy() + 100, "I");
+}
+
+void drawToolMenu(){
+ hideMousePtr();
+ //getimage(80, 0.06*getmaxy(), 185, 0.06*getmaxy() + 160, bmpToolsMenu);
+ saveBmp();
+ showMousePtr(); 
+ currMenu = 'T';
+ setfillstyle(SOLID_FILL, 7);
+ bar3d(80, 0.06*getmaxy(), 180, 0.06*getmaxy() + 160, 1, 1);
+ setcolor(15);
+ outtextxy(82, 0.06*getmaxy(), "Line");
+ /* setcolor(1);
+ outtextxy(140 - 10, 0.06*getmaxy(), "U");*/
+
+ setcolor(15);
+ outtextxy(82, 0.06*getmaxy() + 20, "Circle");
+ /* setcolor(1);
+ outtextxy(140 - 10, 0.06*getmaxy() + 20, "C");*/
+
+ setcolor(15);
+ outtextxy(82, 0.06*getmaxy() + 40, "Rectangle");
+ /*setcolor(1);
+ outtextxy(140 - 10, 0.06*getmaxy() + 40, "E");*/
+
+ setcolor(15);
+ outtextxy(82, 0.06*getmaxy() + 60, "Polygon");
+ /*setcolor(1);
+ outtextxy(140 - 10, 0.06*getmaxy() + 60, "M");  */
+
+ setcolor(15);
+ outtextxy(82, 0.06*getmaxy() + 80, "Text");
+ /*setcolor(1);
+ outtextxy(140 - 10, 0.06*getmaxy() + 80, "L");*/
+
+ setcolor(15);
+ outtextxy(82, 0.06*getmaxy() + 100, "Freehand");
+ /*setcolor(1);
+ outtextxy(140 - 10, 0.06*getmaxy() + 100, "I");*/
+
+ setcolor(15);
+ outtextxy(82, 0.06*getmaxy() + 120, "Ellipse");
+
+ setcolor(15);
+ outtextxy(82, 0.06*getmaxy() + 140, "Curve");
+}
+
+void drawImageMenu(){
+ hideMousePtr();
+ //getimage(120, 0.06*getmaxy(), 225, 0.06*getmaxy() + 40, bmpImageMenu);
+ saveBmp();
+ showMousePtr(); 
+ currMenu = 'I';
+ setfillstyle(SOLID_FILL, 7);
+ bar3d(120, 0.06*getmaxy(), 220, 0.06*getmaxy() + 40, 1, 1);
+ setcolor(15);
+ outtextxy(122, 0.06*getmaxy(), "Zoom Out");
+ /* setcolor(1);
+ outtextxy(140 - 10, 0.06*getmaxy(), "U");*/
+
+ setcolor(15);
+ outtextxy(122, 0.06*getmaxy() + 20, "Zoom In");
+ /* setcolor(1);
+ outtextxy(140 - 10, 0.06*getmaxy() + 20, "C");*/
+}
+
+void drawRotateMenu(){
+ hideMousePtr();
+ //getimage(200, 0.06*getmaxy(), 305, 0.06*getmaxy() + 100, bmpRotateMenu);
+ saveBmp();
+ showMousePtr();
+ currMenu = 'R';
+ setfillstyle(SOLID_FILL, 7);
+ bar3d(200, 0.06*getmaxy(), 300, 0.06*getmaxy() + 100, 1, 1);
+ setcolor(15);
+ outtextxy(202, 0.06*getmaxy(), "Rotate 30 deg");
+ /* setcolor(1);
+ outtextxy(140 - 10, 0.06*getmaxy(), "U");*/
+
+ setcolor(15);
+ outtextxy(202, 0.06*getmaxy() + 20, "Rotate 45 deg");
+ /* setcolor(1);
+ outtextxy(140 - 10, 0.06*getmaxy() + 20, "C");*/
+
+ setcolor(15);
+ outtextxy(202, 0.06*getmaxy() + 40, "Rotate 60 deg");
+
+ setcolor(15);
+ outtextxy(202, 0.06*getmaxy() + 60, "Clockwise x deg");
+
+ setcolor(15);
+ outtextxy(202, 0.06*getmaxy() + 80, "Anticlockwise x deg");
+}
+
+void statusBarText(char status[]){
+ int i, j;
+ for(i = 10; i < 500; i++){
+  for(j = 0.97*getmaxy(); j < getmaxy(); j++){
+   putpixel(i,j,8);
+  }
+ }
+
+ setcolor(15);
+ outtextxy(10, 0.97*getmaxy(), status);
+}
+
+void initBmp(){
+ bmpFileMenu = malloc(imagesize(0, 0.06*getmaxy(), 105, 0.06*getmaxy() + 120));
+ getimage(0, 0.06*getmaxy(), 105, 0.06*getmaxy() + 120, bmpFileMenu);
+ bmpEditMenu = malloc(imagesize(40, 0.06*getmaxy(), 145, 0.06*getmaxy() + 120));
+ getimage(40, 0.06*getmaxy(), 145, 0.06*getmaxy() + 120, bmpEditMenu);
+ bmpToolsMenu = malloc(imagesize(80, 0.06*getmaxy(), 185, 0.06*getmaxy() + 160));
+ getimage(80, 0.06*getmaxy(), 185, 0.06*getmaxy() + 160, bmpToolsMenu);
+ bmpImageMenu = malloc(imagesize(120, 0.06*getmaxy(), 225, 0.06*getmaxy() + 40));
+ getimage(120, 0.06*getmaxy(), 225, 0.06*getmaxy() + 40, bmpImageMenu);
+ bmpRotateMenu = malloc(imagesize(200, 0.06*getmaxy(), 305, 0.06*getmaxy() + 100));
+ getimage(200, 0.06*getmaxy(), 305, 0.06*getmaxy() + 100, bmpRotateMenu);
+ bmpCanvas = malloc(imagesize(96, 43, 640, 384));
+ bmpDialog = malloc(imagesize(270, 210, 400, 270));
+}
+
+void saveBmp(){
+	getimage(0, 0.06*getmaxy(), 105, 0.06*getmaxy() + 120, bmpFileMenu);
+	getimage(40, 0.06*getmaxy(), 145, 0.06*getmaxy() + 120, bmpEditMenu);
+	getimage(80, 0.06*getmaxy(), 185, 0.06*getmaxy() + 160, bmpToolsMenu);
+	getimage(120, 0.06*getmaxy(), 225, 0.06*getmaxy() + 40, bmpImageMenu);
+	getimage(200, 0.06*getmaxy(), 305, 0.06*getmaxy() + 100, bmpRotateMenu);
+}
+
+void initWindow(){
+ initgraph(&gd, &gm, "C:\\Turboc3\\BGI");
+ initMouse();
+ structure();
+ showMousePtr();
+}
+
+void fileMenuCleanUp(){
+	putimage(40, 0.06*getmaxy(), bmpEditMenu, 0);
+    putimage(80, 0.06*getmaxy(), bmpToolsMenu, 0);
+    putimage(120, 0.06*getmaxy(), bmpImageMenu, 0);
+    putimage(200, 0.06*getmaxy(), bmpRotateMenu, 0);
+    currMenu = 'F';
+    statusBarText("File menu.");
+    drawFileMenu();
+}
+
+void editMenuCleanup(){
+	putimage(0, 0.06*getmaxy(), bmpFileMenu, 0);
+	putimage(80, 0.06*getmaxy(), bmpToolsMenu, 0);
+	putimage(120, 0.06*getmaxy(), bmpImageMenu, 0);
+	putimage(200, 0.06*getmaxy(), bmpRotateMenu, 0);
+	currMenu = 'E';
+	statusBarText("Edit file.");
+	drawEditMenu();
+}
+
+void toolsMenuCleanup(){
+	putimage(0, 0.06*getmaxy(), bmpFileMenu, 0);
+      putimage(40, 0.06*getmaxy(), bmpEditMenu, 0);
+      putimage(120, 0.06*getmaxy(), bmpImageMenu, 0);
+      putimage(200, 0.06*getmaxy(), bmpRotateMenu, 0);
+      currMenu = 'T';
+      statusBarText("Tools.");
+      drawToolMenu();
+}
+
+void imageMenuCleanup(){
+	putimage(0, 0.06*getmaxy(), bmpFileMenu, 0);
+      putimage(40, 0.06*getmaxy(), bmpEditMenu, 0);
+      putimage(80, 0.06*getmaxy(), bmpToolsMenu, 0);
+      putimage(200, 0.06*getmaxy(), bmpRotateMenu, 0);
+      currMenu = 'I';
+      statusBarText("Image.");
+      drawImageMenu();
+}
+
+void rotateMenuCleanup(){
+	putimage(0, 0.06*getmaxy(), bmpFileMenu, 0);
+      putimage(40, 0.06*getmaxy(), bmpEditMenu, 0);
+      putimage(80, 0.06*getmaxy(), bmpToolsMenu, 0);
+      putimage(120, 0.06*getmaxy(), bmpImageMenu, 0);
+      currMenu = 'R';
+      statusBarText("Rotate Image.");
+      drawRotateMenu();
+}
+
+void rubberBand(){
+ getimage(96, 43, 640, 341, bmpCanvas);
+
+}
+
+void main(){
+ char ch, chSub;
+ char statusText[] = {"Welcome"};
+ int loop = 1;
+
+ initWindow();
+ initBmp();
+ statusBarText(&statusText[0]);
+ bar(20, 370, 70, 420);
+ while(loop){
+  printMousePos();
+  if(kbhit()){
+   ch = getch();
+   switch(ch){
+    case 'X':
+    case 'x':
+     if(currMenu == 'F') loop = 0;
+     statusBarText("Exit from the graphics editor.");
+     break;
+    case 'C':
+    case 'c':
+     if(currMenu == 'F'){
+      //close code
+      statusBarText("Close this file.");
+     }
+     break;
+    case 'A':
+    case 'a':
+     if(currMenu == 'F'){
+      saveAs();
+      statusBarText("Save this file as...");
+     }
+     break;
+    case 'S':
+    case 's':
+     if(currMenu == 'F'){
+      //Save code
+      statusBarText("Save the file.");
+     }
+     break;
+    case 'O':
+    case 'o':
+     if(currMenu == 'F'){
+      open();
+      statusBarText("Open an existing file.");
+     }
+     break;
+    case 'N':
+    case 'n':
+     if(currMenu == 'F'){
+      //new code
+      statusBarText("Create a new file.");
+     }
+     break;
+    case 'F':
+    case 'f':
+     if(currMenu == 'F'){
+      currMenu = 'D';
+      putimage(0, 0.06*getmaxy(), bmpFileMenu, 0);
+     }else{
+      fileMenuCleanUp();
+     }
+     break;
+    case 'E':
+    case 'e':
+     if(currMenu == 'E'){
+      currMenu = 'D';
+      putimage(40, 0.06*getmaxy(), bmpEditMenu, 0);
+     }else{
+      editMenuCleanup();
+     }
+     break;
+    case 'T':
+    case 't':
+     if(currMenu == 'T'){
+      currMenu = 'D';
+      putimage(80, 0.06*getmaxy(), bmpToolsMenu, 0);
+     }else{
+      toolsMenuCleanup();
+     }
+     break;
+    case 'I':
+    case 'i':
+     if(currMenu == 'I'){
+      currMenu = 'D';
+      putimage(120, 0.06*getmaxy(), bmpImageMenu, 0);
+     }else{
+      imageMenuCleanup();
+     }
+     break;
+    case 'R':
+    case 'r':
+     if(currMenu == 'R'){
+      currMenu = 'D';
+      putimage(200, 0.06*getmaxy(), bmpRotateMenu, 0);
+     }else{
+      rotateMenuCleanup();
+     }
+     break;
+   }
+  }
+  getMousePos();
+  if(button == 1){
+   button = -1;
+   int clickCordX = o.x.cx, clickCordY = o.x.dx;
+   //printf("%d %d, ", clickCordX, clickCordY);
+   if(clickCordX >= 10 && clickCordX <= 110 && clickCordY >= 0.06*getmaxy() + 100 && clickCordY <= 0.06*getmaxy() + 120 && currMenu == 'F'){
+    loop = 0;
+   }else if(clickCordX >= 2 && clickCordX <= 42 && clickCordY >= 0.034*getmaxy() && clickCordY <= 0.06*getmaxy() && currMenu != 'F'){
+    fileMenuCleanUp();
+   }else if(clickCordX >= 42 && clickCordX <= 82 && clickCordY >= 0.034*getmaxy() && clickCordY <= 0.06*getmaxy() && currMenu != 'E'){
+	editMenuCleanup();
+   }else if(clickCordX >= 82 && clickCordX <= 122 && clickCordY >= 0.034*getmaxy() && clickCordY <= 0.06*getmaxy() && currMenu != 'T'){
+	toolsMenuCleanup();
+   }else if(clickCordX >= 122 && clickCordX <= 162 && clickCordY >= 0.034*getmaxy() && clickCordY <= 0.06*getmaxy() && currMenu != 'I'){
+	imageMenuCleanup();
+   }else if(clickCordX >= 202 && clickCordX <= 242 && clickCordY >= 0.034*getmaxy() && clickCordY <= 0.06*getmaxy() && currMenu != 'R'){
+	rotateMenuCleanup();
+   }else if(clickCordX >= 2 && clickCordX <= 42 && clickCordY >= 0.034*getmaxy() && clickCordY <= 0.06*getmaxy() && currMenu == 'F'){
+    currMenu = 'D';
+    putimage(0, 0.06*getmaxy(), bmpFileMenu, 0);
+   }else if(clickCordX >= 42 && clickCordX <= 82 && clickCordY >= 0.034*getmaxy() && clickCordY <= 0.06*getmaxy() && currMenu == 'E'){
+	currMenu = 'D';
+    putimage(40, 0.06*getmaxy(), bmpEditMenu, 0);
+   }else if(clickCordX >= 82 && clickCordX <= 122 && clickCordY >= 0.034*getmaxy() && clickCordY <= 0.06*getmaxy() && currMenu == 'T'){
+	currMenu = 'D';
+    putimage(80, 0.06*getmaxy(), bmpToolsMenu, 0);
+   }else if(clickCordX >= 122 && clickCordX <= 162 && clickCordY >= 0.034*getmaxy() && clickCordY <= 0.06*getmaxy() && currMenu == 'I'){
+	currMenu = 'D';
+    putimage(120, 0.06*getmaxy(), bmpImageMenu, 0);
+   }else if(clickCordX >= 202 && clickCordX <= 242 && clickCordY >= 0.034*getmaxy() && clickCordY <= 0.06*getmaxy() && currMenu == 'R'){
+	currMenu = 'D';
+    putimage(200, 0.06*getmaxy(), bmpRotateMenu, 0);
+   }else if(clickCordX >= 70 && clickCordX <= 85 && clickCordY >= 0.12*getmaxy() && clickCordY <= 0.12*getmaxy() + 15){
+	statusBarText("Draw a Line.");
+	currTool = 'L';
+   }else if(clickCordX >= 70 && clickCordX <= 75 && clickCordY >= 88 && clickCordY <= 103){
+	statusBarText("Draw a Rectangle.");
+	currTool = 'R';
+   }else if(clickCordX >= 40 && clickCordX <= 55 && clickCordY >= 88 && clickCordY <= 103){
+	statusBarText("Draw a Polygon.");
+	currTool = 'P';
+   }else if(clickCordX >= 40 && clickCordX <= 55 && clickCordY >= 58 && clickCordY <= 73){
+	statusBarText("Draw a Circle.");
+	currTool = 'C';
+   }else if(clickCordX >= 126  && clickCordX <= 141  && clickCordY >= 399   && clickCordY <= 414){
+	currCol = 0;  setfillstyle(0,0); bar(20, 370, 70, 420);
+   }else if(clickCordX >= 126  && clickCordX <= 141  && clickCordY >= 419   && clickCordY <= 434){
+	currCol = 1;  setfillstyle(SOLID_FILL,1); bar(20, 370, 70, 420);
+   }else if(clickCordX >= 151   && clickCordX <= 166    && clickCordY >= 399   && clickCordY <= 414){
+	currCol = 2;  setfillstyle(SOLID_FILL,2); bar(20, 370, 70, 420);
+   }else if(clickCordX >= 151   && clickCordX <= 166    && clickCordY >= 419   && clickCordY <= 434){
+	currCol = 3;  setfillstyle(1,3); bar(20, 370, 70, 420);
+   }else if(clickCordX >= 176   && clickCordX <= 191    && clickCordY >= 399   && clickCordY <= 414){
+	currCol = 4;  setfillstyle(1,4); bar(20, 370, 70, 420);
+   }else if(clickCordX >= 176   && clickCordX <= 191    && clickCordY >= 419   && clickCordY <= 434){
+	currCol = 5;  setfillstyle(1,5); bar(20, 370, 70, 420);
+   }else if(clickCordX >= 201   && clickCordX <= 216    && clickCordY >= 399   && clickCordY <= 414){
+	currCol = 6;  setfillstyle(1,6); bar(20, 370, 70, 420);
+   }else if(clickCordX >= 201   && clickCordX <= 216    && clickCordY >= 419   && clickCordY <= 434){
+	currCol = 7;  setfillstyle(1,7); bar(20, 370, 70, 420);
+   }else if(clickCordX >= 226   && clickCordX <= 241    && clickCordY >= 399   && clickCordY <= 414){
+	currCol = 8;  setfillstyle(1,8); bar(20, 370, 70, 420);
+   }else if(clickCordX >= 226   && clickCordX <= 241    && clickCordY >= 419   && clickCordY <= 434){
+	currCol = 9;  setfillstyle(1,9); bar(20, 370, 70, 420);
+   }else if(clickCordX >= 251   && clickCordX <= 266    && clickCordY >= 399   && clickCordY <= 414){
+	currCol = 10; setfillstyle(1,10); bar(20, 370, 70, 420);
+   }else if(clickCordX >= 251   && clickCordX <= 266    && clickCordY >= 419   && clickCordY <= 434){
+	currCol = 11; setfillstyle(1,11); bar(20, 370, 70, 420);
+   }else if(clickCordX >= 276   && clickCordX <= 291    && clickCordY >= 399   && clickCordY <= 414){
+	currCol = 12; setfillstyle(1,12); bar(20, 370, 70, 420);
+   }else if(clickCordX >= 276   && clickCordX <= 291    && clickCordY >= 419   && clickCordY <= 434){
+	currCol = 13; setfillstyle(1,13); bar(20, 370, 70, 420);
+   }else if(clickCordX >= 301   && clickCordX <= 316    && clickCordY >= 399   && clickCordY <= 414){
+	currCol = 14; setfillstyle(1,14); bar(20, 370, 70, 420);
+   }else if(clickCordX >= 301   && clickCordX <= 316    && clickCordY >= 419   && clickCordY <= 434){
+	currCol = 15; setfillstyle(1,15); bar(20, 370, 70, 420);
+   }else if(clickCordX >= 426   && clickCordX <= 441    && clickCordY >= 398   && clickCordY <= 413){
+	currStyle = 3; setfillstyle(currStyle,currCol);  bar(20, 370, 70, 420);
+   }else if(clickCordX >= 426   && clickCordX <= 441    && clickCordY >= 418   && clickCordY <= 433){
+	currStyle = 4; setfillstyle(currStyle,currCol);  bar(20, 370, 70, 420); 
+   }else if(clickCordX >= 451   && clickCordX <= 466    && clickCordY >= 398   && clickCordY <= 413){
+	currStyle = 5; setfillstyle(currStyle,currCol);  bar(20, 370, 70, 420); 
+   }else if(clickCordX >= 451   && clickCordX <= 466    && clickCordY >= 418   && clickCordY <= 433){
+	currStyle = 6; setfillstyle(currStyle,currCol);  bar(20, 370, 70, 420); 
+   }else if(clickCordX >= 476   && clickCordX <= 491    && clickCordY >= 398   && clickCordY <= 413){
+	currStyle = 7; setfillstyle(currStyle,currCol);  bar(20, 370, 70, 420); 
+   }else if(clickCordX >= 476   && clickCordX <= 491    && clickCordY >= 418   && clickCordY <= 433){
+	 currStyle = 8; setfillstyle(currStyle,currCol);  bar(20, 370, 70, 420);
+   }else if(clickCordX >= 501   && clickCordX <= 516    && clickCordY >= 398   && clickCordY <= 413){
+	currStyle = 9; setfillstyle(currStyle,currCol);  bar(20, 370, 70, 420); 
+   }else if(clickCordX >= 501   && clickCordX <= 516    && clickCordY >= 418   && clickCordY <= 433){
+	currStyle = 10; setfillstyle(currStyle,currCol); bar(20, 370, 70, 420);  
+   }else if(clickCordX >= 526   && clickCordX <= 541    && clickCordY >= 398   && clickCordY <= 413){
+	currStyle = 11; setfillstyle(currStyle,currCol);  bar(20, 370, 70, 420); 
+   }else if(clickCordX >= 526   && clickCordX <= 541    && clickCordY >= 418   && clickCordY <= 433){
+	 currStyle = 2;  setfillstyle(currStyle,currCol); bar(20, 370, 70, 420);
+   }else if(clickCordX >= 551   && clickCordX <= 566    && clickCordY >= 398   && clickCordY <= 413){
+	 currStyle = 0;  setfillstyle(currStyle,currCol); bar(20, 370, 70, 420);
+   }else if(clickCordX >= 551   && clickCordX <= 566    && clickCordY >= 418   && clickCordY <= 433){
+	 currStyle = 1; setfillstyle(currStyle,currCol);  bar(20, 370, 70, 420);
+   }else if(clickCordX >= 0.15*getmaxx() && clickCordX <= getmaxx() && clickCordY >= 0.09*getmaxy() && clickCordY <= 0.8*getmaxy() && currTool == 'C'){
+	if(circPointNos == 1){
+	 c1 = clickCordX; c2 = clickCordY;
+	 circPointNos = 2;
+	 statusBarText("Put a point at radius distance");
+	 setcolor(currCol);
+	}else{
+	 //outtextxy(clickCordX, clickCordY, "");
+	 circle(c1, c2, clickCordX - c1);
+	 if(currStyle != 1) floodfill(c1, c2, currCol);
+	 circPointNos = 1;
+	 putPoint(0, c1, c2, currCol, currStyle);
+	 putPoint(-1, clickCordX-c1, 0, currCol, currStyle);
+	 //getimage(96, 43, 640, 341, bmpCanvas);
+	 statusBarText("Put Centre Point");
+	 setcolor(currCol);
+	}
+	clickCordX = clickCordY = 0;
+   }else if(clickCordX >= 0.15*getmaxx() && clickCordX <= getmaxx() && clickCordY >= 0.09*getmaxy() && clickCordY <= 0.8*getmaxy() && currTool == 'P'){
+	if(polyPointNos == 1){
+	 moveto(clickCordX, clickCordY);
+	 putpixel(clickCordX, clickCordY, currCol);
+	 p1 = clickCordX; p2 = clickCordY;
+	 polyPointNos = 2;
+	 putPoint(1, p1, p2, currCol, currStyle);
+	 statusBarText("Put Next Point. Click on first point to close polygon");
+	setcolor(currCol);
+	}else{
+	 //outtextxy(clickCordX, clickCordY, "");
+	 if(clickCordX <= p1 + 3 && clickCordX >= p1 - 3 && clickCordY >= p2 - 3 && clickCordY <= p2 + 3) {
+		 polyPointNos = 1;
+		lineto(p1, p2);
+		putPoint(2, p1, p2, currCol, currStyle);
+		statusBarText("Put First Point.");
+		setcolor(currCol);	
+	 }else{
+		 lineto(clickCordX, clickCordY);
+		 putPoint(2, clickCordX, clickCordY, currCol, currStyle);
+		statusBarText("Put Next Point. Click on first point to close polygon.");
+		setcolor(currCol);	
+	 }
+	 //getimage(96, 43, 640, 341, bmpCanvas);
+	}
+	clickCordX = clickCordY = 0;
+   }else if(clickCordX >= 0.15*getmaxx() && clickCordX <= getmaxx() && clickCordY >= 0.09*getmaxy() && clickCordY <= 0.8*getmaxy() && currTool == 'R'){
+	if(rectPointNos == 1){
+	 moveto(clickCordX, clickCordY);
+	 putpixel(clickCordX, clickCordY, currCol);
+	 r1 = clickCordX; r2 = clickCordY;
+	 setcolor(currCol);
+	 rectPointNos = 2;
+	 statusBarText("Put Right-Bottom Point");
+	 setcolor(currCol);
+	}else{
+	 //outtextxy(clickCordX, clickCordY, "");
+	 setfillstyle(currStyle, currCol);
+	 if(currStyle != 1) bar(r1, r2, clickCordX, clickCordY);
+	 rectangle(r1, r2, clickCordX, clickCordY);
+	 rectPointNos = 1;
+	 putPoint(4, r1, r2, currCol, currStyle);
+	 putPoint(2, clickCordX, r2, currCol, currStyle);
+	 putPoint(2, clickCordX, clickCordY, currCol, currStyle);
+	 putPoint(2, r1, clickCordY, currCol, currStyle);
+	 putPoint(2, r1, r2, currCol, currStyle);
+	 //getimage(96, 43, 640, 341, bmpCanvas);
+	 statusBarText("Put Left-Top Point");
+	 setcolor(currCol);
+	}
+	clickCordX = clickCordY = 0;
+   }else if(clickCordX >= 0.15*getmaxx() && clickCordX <= getmaxx() && clickCordY >= 0.09*getmaxy() && clickCordY <= 0.8*getmaxy() && currTool == 'L'){
+	//putimage(96, 43, bmpCanvas, 0);
+	if(linePointNos == 1){
+	 moveto(clickCordX, clickCordY);
+	 putpixel(clickCordX, clickCordY, currCol);
+	 l1 = clickCordX; l2 = clickCordY;
+	 linePointNos = 2;
+	 statusBarText("Put Second Point");
+	 setcolor(currCol);
+	}else{
+	 //outtextxy(clickCordX, clickCordY, "");
+	 lineto(clickCordX, clickCordY);
+	 linePointNos = 1;
+	 putPoint(1, l1, l2, currCol, currStyle);
+	 putPoint(2, clickCordX, clickCordY, currCol, currStyle);
+	 //getimage(96, 43, 640, 341, bmpCanvas);
+	 statusBarText("Put First Point");
+	 setcolor(currCol);
+	}
+	clickCordX = clickCordY = 0;
+   }
+  }
+ }
+}
